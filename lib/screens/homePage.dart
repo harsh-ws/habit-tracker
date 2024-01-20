@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:habit_tracker/components/drawer.dart';
+import 'package:habit_tracker/components/heatmap.dart';
+import 'package:habit_tracker/components/utils.dart';
 import 'package:habit_tracker/database/habitDatabase.dart';
 import 'package:habit_tracker/models/habit.dart';
 import 'package:provider/provider.dart';
@@ -35,22 +37,71 @@ class _HomePageState extends State<HomePage> {
   //create a new habit
   void createNewHabit() {
     showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        content: TextField(
+          controller: habitInput,
+          decoration: const InputDecoration(hintText: "Create a New Habit"),
+        ),
+        actions: [
+          //Save Button
+          MaterialButton(
+            onPressed: () {
+              // Get the habit name
+              String newHabit = habitInput.text;
+
+              // Store the habit in the database
+              context.read<HabitDatabase>().addHabit(newHabit);
+
+              // Close the dialog box
+              Navigator.pop(context);
+
+              // Clear the input controller
+              habitInput.clear();
+            },
+            child: const Text('Save'),
+          ),
+
+          //Cancel Button
+          MaterialButton(
+            onPressed: () {
+              // Close the Alert Dialog
+              Navigator.pop(context);
+
+              // Clear the input controller
+              habitInput.clear();
+            },
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Check off the completed habits on completion
+  void crossFinishedHabits(bool? value, Habit habit) {
+    if (value != null) {
+      context.read<HabitDatabase>().updateHabitProgress(habit.id, value);
+    }
+  }
+
+  void editHabitBox(Habit habit) {
+    habitInput.text = habit.name;
+    showDialog(
         context: context,
         builder: (context) => AlertDialog(
               content: TextField(
                 controller: habitInput,
-                decoration:
-                    const InputDecoration(hintText: "Create a New Habit"),
               ),
               actions: [
-                //Save Button
+                // save button
                 MaterialButton(
                   onPressed: () {
                     // Get the habit name
                     String newHabit = habitInput.text;
 
                     // Store the habit in the database
-                    context.read<HabitDatabase>().addHabit(newHabit);
+                    context.read<HabitDatabase>().updateHabitName(habit.id, newHabit);
 
                     // Close the dialog box
                     Navigator.pop(context);
@@ -76,11 +127,36 @@ class _HomePageState extends State<HomePage> {
             ));
   }
 
-  // Check off the completed habits on completion
-  void crossFinishedHabits(bool? value, Habit habit){
-    if (value != null){
-      context.read<HabitDatabase>().updateHabitProgress(habit.id, value);
-    }
+  void deleteHabitBox(Habit habit) {
+    habitInput.text = habit.name;
+    showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+              title: const Text("Are you sure?"),
+              actions: [
+                // delete button
+                MaterialButton(
+                  child: const Text('Delete'),
+                  onPressed: () {
+
+                    // Store the habit in the database
+                    context.read<HabitDatabase>().deleteHabit(habit.id);
+
+                    // Close the dialog box
+                    Navigator.pop(context);
+                  },
+                ),
+
+                //Cancel Button
+                MaterialButton(
+                  child: const Text('Cancel'),
+                  onPressed: () {
+                    // Close the Alert Dialog
+                    Navigator.pop(context);
+                  },
+                ),
+              ],
+            ));
   }
 
   @override
@@ -97,11 +173,40 @@ class _HomePageState extends State<HomePage> {
           Icons.add,
         ),
       ),
-      body: _buildHabitList(),
+      body: ListView(
+        children: [
+          // Heat Map
+          _buildHeatMap(),
+          // Habit List
+          _buildHabitList(),
+        ],
+      ),
     );
   }
 
-  // Building habit list
+  // Building Heat Map
+  Widget _buildHeatMap() {
+    // Read current habits from the database
+    final habitDatabase = context.watch<HabitDatabase>();
+
+    // Store the current habits in a List of Widgets
+    List<Habit> currentHabits = habitDatabase.currentHabits;
+
+    return FutureBuilder(
+      future: habitDatabase.getFirstLaunchDate(),
+      builder: (context, snapshot) {
+        if (snapshot.hasData) {
+          return MyHeatMap(
+              startDate: snapshot.data!,
+              datasets: prepareHeatMapData(currentHabits));
+        } else {
+          return Container();
+        }
+      },
+    );
+  }
+
+  // Building Habit list
   Widget _buildHabitList() {
     // Read current habits from the database
     final habitDatabase = context.watch<HabitDatabase>();
@@ -111,6 +216,8 @@ class _HomePageState extends State<HomePage> {
 
     // Return the current habit list
     return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
       itemCount: currentHabits.length,
       itemBuilder: (context, index) {
         // Get each habit from the list
@@ -120,9 +227,13 @@ class _HomePageState extends State<HomePage> {
         bool isDoneToday = isFinishedToday(habit.finishedDays);
 
         // Return the habit
-        return HabitTile(text: habit.name, 
-            isFinished: isDoneToday, 
-            onChanged:(value) => crossFinishedHabits(value, habit));
+        return HabitTile(
+          text: habit.name,
+          isFinished: isDoneToday,
+          onChanged: (value) => crossFinishedHabits(value, habit),
+          editHabit: (context) => editHabitBox(habit),
+          deleteHabit: (context) => deleteHabitBox(habit),
+        );
       },
     );
   }
