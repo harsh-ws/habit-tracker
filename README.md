@@ -12,7 +12,4 @@ A simple and minimalistic app to keep track of your habits and stay on track in 
 
 
 ## Screenshots
-
-![App Screenshot](https://via.placeholder.com/468x300?text=App+Screenshot+Here)
- 
-![Habit Tracker Screenshot](habit_tracker.png)
+ <img src="habit_tracker_screenshot.png" width =400 height=800>
